@@ -47,7 +47,7 @@ public class MainActivity extends AppCompatActivity {
     final static public String[] GETALL_DATA_PARAM_KEY = {"title", "message", "date_time"};
 
     /*layout elements*/
-    private Button btnSend;
+    private Button btnSend, btnSync;
     private EditText edtTxtTitle, edtTxtMsg;
     /*ForProgressUnit*/
     private RelativeLayout rlvLoutProgress;
@@ -72,11 +72,7 @@ public class MainActivity extends AppCompatActivity {
         setInitialValue();
         setLayoutView();
         setListener();
-        if (NetworkUtility.isNetworkAvailable(mContext)) {
-            loadOnlineMessage();
-        } else {
-            loadOfflineMessage();
-        }
+        loadOfflineMessage();
 
     }
     /*------------------------------------------------------------------*/
@@ -92,6 +88,8 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         btnSend = (Button) findViewById(R.id.btnSend);
+        btnSync = (Button) findViewById(R.id.btnSync);
+        btnSync.setVisibility(View.GONE);
         edtTxtTitle = (EditText) findViewById(R.id.edtTxtTitle);
         edtTxtMsg = (EditText) findViewById(R.id.edtTxtMsg);
 
@@ -113,7 +111,12 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(View v) {
                 saveMessageInApp();
                 if (NetworkUtility.isNetworkAvailable(mContext)) {
-                    sendToServer();
+                    if (getValue()) {
+                        String[] messageValue = {mTitle, mMessage};
+                        sendToServer(new MessageDataModel(messageValue));
+                    } else {
+                        Toast.makeText(mContext, mContext.getString(R.string.enterAllValues), Toast.LENGTH_LONG).show();
+                    }
                 }
                 loadOfflineMessage();
             }
@@ -125,7 +128,16 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(mContext, mResponseData.get(position).toString(), Toast.LENGTH_SHORT).show();
             }
         });
+
+        btnSync.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                syncOfflineData();
+            }
+        });
     }
+
+
     /*------------------------------------------------------------------*/
 
 
@@ -133,33 +145,32 @@ public class MainActivity extends AppCompatActivity {
     /*#### Manage data ####*/
 
     /*Online methods*/
-    private void sendToServer() {
-        if (getValue()) {
-            if (NetworkUtility.isNetworkAvailable(mContext)) {
-                showLoader(mContext.getString(R.string.pleaseWait));
-                String[] values = {mTitle, mMessage};
-                VolleyController volleyController = new VolleyController(mContext);
-                volleyController.setServerIngo(mAppServerUrl + API_SEND_MESSAGE, Request.Method.POST);
-                volleyController.sendValueByVolley(INSERT_PARAM_KEY, values);
-                volleyController.getServerResponse(new VolleyController.OnResponseListener() {
-                    @Override
-                    public void onResponse(String response) {
-                        hideLoader();
-                        Log.d("response", "serverResponse: " + response);
-                    }
+    private void sendToServer(MessageDataModel messageDataModel) {
 
-                    @Override
-                    public void onErrorResponse(String response) {
-                        hideLoader();
-                        Log.d("response", "serverResponse: " + response);
-                    }
-                });
-            } else {
-                Toast.makeText(mContext, mContext.getString(R.string.noInternet), Toast.LENGTH_LONG).show();
-            }
+
+        if (messageDataModel!=null && NetworkUtility.isNetworkAvailable(mContext)) {
+            showLoader(mContext.getString(R.string.pleaseWait));
+            String[] values = {messageDataModel.getMTitle(), messageDataModel.getMMessage()};
+            VolleyController volleyController = new VolleyController(mContext);
+            volleyController.setServerIngo(mAppServerUrl + API_SEND_MESSAGE, Request.Method.POST);
+            volleyController.sendValueByVolley(INSERT_PARAM_KEY, values);
+            volleyController.getServerResponse(new VolleyController.OnResponseListener() {
+                @Override
+                public void onResponse(String response) {
+                    hideLoader();
+                    Log.d("response", "serverResponse: " + response);
+                }
+
+                @Override
+                public void onErrorResponse(String response) {
+                    hideLoader();
+                    Log.d("response", "serverResponse: " + response);
+                }
+            });
         } else {
-            Toast.makeText(mContext, mContext.getString(R.string.enterAllValues), Toast.LENGTH_LONG).show();
+            Toast.makeText(mContext, mContext.getString(R.string.noInternet), Toast.LENGTH_LONG).show();
         }
+
     }
 
     private void loadOnlineMessage() {
@@ -174,7 +185,6 @@ public class MainActivity extends AppCompatActivity {
                 public void onResponse(String response) {
                     messageDataParsing(response);
                     hideLoader();
-
 
                     Log.d("response", "serverResponse: " + response);
                 }
@@ -217,7 +227,35 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         dbController.closeDB();
-        Toast.makeText(mContext, "Load offline data", Toast.LENGTH_SHORT).show();
+
+        /*Show sync option*/
+        for (MessageDataModel messageDataModel : messageDataModels) {
+            //btnSync
+            if (!messageDataModel.getMFrom().isEmpty() && messageDataModel.getMFrom().equalsIgnoreCase("mobile")) {
+                btnSync.setVisibility(View.VISIBLE);
+                break;
+            }
+        }
+
+    }
+
+    private void syncOfflineData() {
+
+        DbController dbController = new DbController(mContext);
+
+        ArrayList<MessageDataModel> messageDataModels = dbController.getAllMessageData(DbConstants.MESSAGE_COLUMN_M_FROM, "mobile");
+
+        for (int i = 0; i < messageDataModels.size(); i++) {
+            if (NetworkUtility.isNetworkAvailable(mContext)) {
+                mTitle = messageDataModels.get(i).getMTitle();
+                mMessage = messageDataModels.get(i).getMMessage();
+                //MessageDataModel messageDataModel = messageDataModels.get(i);
+                sendToServer(messageDataModels.get(i));
+                messageDataModels.get(i).setmMFrom("server");
+                dbController.updateMessageData(messageDataModels.get(i));
+                btnSync.setVisibility(View.GONE);
+            }
+        }
     }
 
     public void messageDataParsing(String messageInList) {
@@ -229,7 +267,8 @@ public class MainActivity extends AppCompatActivity {
             ArrayList<MessageDataModel> messageDataModels = new ArrayList<>();
 
             DbController dbController = new DbController(mContext);
-            dbController.deleteTbls(DbConstants.TABLE_MESSAGE);
+            //dbController.deleteTbls(DbConstants.TABLE_MESSAGE);
+            dbController.deleteMessageData("server");
 
             for (int i = 0; i < values.size(); i++) {
                 MessageDataModel messageDataModel = new MessageDataModel(values.get(i));

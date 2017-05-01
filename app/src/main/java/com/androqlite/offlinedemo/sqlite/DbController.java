@@ -60,7 +60,7 @@ public class DbController {
 
     public int deleteMessageData(String deleteId) {
 
-        String selection = DbConstants.MESSAGE_COLUMN_M_TITLE + " = ?";
+        String selection = DbConstants.MESSAGE_COLUMN_M_FROM+ " = ?";
 
         String[] selectionArgs = {String.valueOf(deleteId)};
 

@@ -87,5 +87,14 @@
 
     </RelativeLayout>
 
+    <Button
+        android:visibility="gone"
+        android:id="@+id/btnSync"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_above="@+id/rvList"
+        android:layout_centerHorizontal="true"
+        android:text="Sync" />
+
 
 </RelativeLayout>
