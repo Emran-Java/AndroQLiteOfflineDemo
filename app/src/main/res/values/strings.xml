@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">OfflineDemo</string>
+
+    <string name="noInternet">No internet</string>
+    <string name="enterAllValues">Enter all values</string>
+
+    <string name="pleaseWait">Please wait...</string>
+</resources>
